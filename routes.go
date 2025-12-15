@@ -24,12 +24,15 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	router.GET("/health", healthHandler)
 
 	// MCP 端点 - 使用官方 SDK 的 Streamable HTTP Handler
+	// Stateless: true 允许无状态调用，不需要 session 管理
+	// 这对于浏览器端跨域调用很重要，因为 CORS 限制可能导致无法获取 Mcp-Session-Id 头
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server {
 			return appServer.mcpServer
 		},
 		&mcp.StreamableHTTPOptions{
 			JSONResponse: true, // 支持 JSON 响应
+			Stateless:    true, // 无状态模式，不需要 session ID
 		},
 	)
 	router.Any("/mcp", gin.WrapH(mcpHandler))

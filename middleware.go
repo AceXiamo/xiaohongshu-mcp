@@ -10,9 +10,18 @@ import (
 // corsMiddleware CORS 中间件
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		if origin != "" {
+			// 动态设置 Origin，支持 credentials
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Credentials", "true")
+		} else {
+			c.Header("Access-Control-Allow-Origin", "*")
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id")
+		// 暴露 Mcp-Session-Id 头给浏览器
+		c.Header("Access-Control-Expose-Headers", "Mcp-Session-Id")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
