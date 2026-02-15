@@ -10,22 +10,27 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Helper functions for annotation pointers
+func boolPtr(b bool) *bool { return &b }
+
 // MCP 工具参数结构体定义
 
 // PublishContentArgs 发布内容的参数
 type PublishContentArgs struct {
-	Title   string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
-	Content string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
-	Images  []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
-	Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content    string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
+	Images     []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
+	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
 }
 
 // PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
 type PublishVideoArgs struct {
-	Title   string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
-	Content string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
-	Video   string   `json:"video" jsonschema:"本地视频绝对路径（仅支持单个视频文件，如:/Users/user/video.mp4）"`
-	Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content    string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
+	Video      string   `json:"video" jsonschema:"本地视频绝对路径（仅支持单个视频文件，如:/Users/user/video.mp4）"`
+	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
 }
 
 // SearchFeedsArgs 搜索内容的参数
@@ -148,6 +153,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "check_login_status",
 			Description: "检查小红书登录状态",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Check Login Status",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("check_login_status", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleCheckLoginStatus(ctx)
@@ -160,6 +169,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "get_login_qrcode",
 			Description: "获取登录二维码（返回 Base64 图片和超时时间）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Login QR Code",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("get_login_qrcode", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleGetLoginQrcode(ctx)
@@ -172,6 +185,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "delete_cookies",
 			Description: "删除 cookies 文件，重置登录状态。删除后需要重新登录。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Delete Cookies",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleDeleteCookies(ctx)
@@ -184,14 +201,19 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "publish_content",
 			Description: "发布小红书图文内容",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Publish Content",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("publish_content", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
 			// 转换参数格式到现有的 handler
 			argsMap := map[string]interface{}{
-				"title":   args.Title,
-				"content": args.Content,
-				"images":  convertStringsToInterfaces(args.Images),
-				"tags":    convertStringsToInterfaces(args.Tags),
+				"title":       args.Title,
+				"content":     args.Content,
+				"images":      convertStringsToInterfaces(args.Images),
+				"tags":        convertStringsToInterfaces(args.Tags),
+				"schedule_at": args.ScheduleAt,
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
@@ -203,6 +225,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "list_feeds",
 			Description: "获取首页 Feeds 列表",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Feeds",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleListFeeds(ctx)
@@ -215,6 +241,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "search_feeds",
 			Description: "搜索小红书内容（需要已登录）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Search Feeds",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("search_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleSearchFeeds(ctx, args)
@@ -227,6 +257,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "get_feed_detail",
 			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表。默认返回前10条一级评论，如需更多评论请设置load_all_comments=true",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Feed Detail",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -268,6 +302,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "user_profile",
 			Description: "获取指定的小红书用户主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "User Profile",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -284,6 +322,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "post_comment_to_feed",
 			Description: "发表评论到小红书笔记",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Post Comment",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("post_comment_to_feed", func(ctx context.Context, req *mcp.CallToolRequest, args PostCommentArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -301,6 +343,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "reply_comment_in_feed",
 			Description: "回复小红书笔记下的指定评论",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Reply Comment",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
 			if args.CommentID == "" && args.UserID == "" {
@@ -327,13 +373,18 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "publish_with_video",
 			Description: "发布小红书视频内容（仅支持本地单个视频文件）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Publish Video",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("publish_with_video", func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"title":   args.Title,
-				"content": args.Content,
-				"video":   args.Video,
-				"tags":    convertStringsToInterfaces(args.Tags),
+				"title":       args.Title,
+				"content":     args.Content,
+				"video":       args.Video,
+				"tags":        convertStringsToInterfaces(args.Tags),
+				"schedule_at": args.ScheduleAt,
 			}
 			result := appServer.handlePublishVideo(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
@@ -345,6 +396,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "like_feed",
 			Description: "为指定笔记点赞或取消点赞（如已点赞将跳过点赞，如未点赞将跳过取消点赞）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Like Feed",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("like_feed", func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -362,6 +417,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "favorite_feed",
 			Description: "收藏指定笔记或取消收藏（如已收藏将跳过收藏，如未收藏将跳过取消收藏）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Favorite Feed",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("favorite_feed", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -374,7 +433,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 12)
+	logrus.Infof("Registered %d MCP tools", 13)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
